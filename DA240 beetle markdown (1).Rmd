@@ -1,0 +1,199 @@
+---
+title: "DA240FinalProject- Beetle Analysis of Patterns of beetle diversity in Kauri forest
+author: "Maya Adams"
+date: "2024-04-22"
+output: html_document
+---
+
+## Beetle Analysis of Patterns of beetle diversity in Kauri forest New Zealand
+
+### Installing library:
+
+### This included readxl and tidyverse, Importing data & Tidying data: This step is included in the importing step because I had to choose which sheet I wanted to import, as well as, select specific data ranges that I wanted included in the data. I downloaded this data from this link and imported it from excel :
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(vegan)
+
+oratia <- read_excel("dataset-of-beetles-in-kauri-forest.xlsx", sheet = 2, range = "A2:P109")
+
+huapai <- read_excel("dataset-of-beetles-in-kauri-forest.xlsx", sheet = 2, range = "A2:D109")
+
+huapai2 <- read_excel("dataset-of-beetles-in-kauri-forest.xlsx", sheet = 2, range ="Q2:AB109")
+
+huapai3<- cbind(huapai,huapai2)
+```
+
+### Transforming the data:
+
+#### This step included taking the tidy data and transforming it by pivoting the data Oratia and Huapai from wide to long. This lengthened the data and maked it more simple and easier to handle. These were combined into one df called "combined". The months in this df were set to the same order as they were in the study this data was collected from.
+
+:
+
+```{r}
+
+# Reshape data
+or_long <- oratia %>% 
+  pivot_longer(
+    cols = !1:4, 
+    names_to = "month", 
+    values_to = "count"
+  )
+
+hua_long <- huapai3 %>% 
+  pivot_longer(
+    cols = !1:4,
+    names_to = "month", 
+    values_to = "count"
+  )
+# This can be used to look at the structure of the data
+glimpse(huapai3)
+
+# This gives location information a name
+or_long$location <- "Oratia"
+hua_long$location <- "Huapai"
+
+# This is to combine data frames and do some basic summary and head to see what they look like combined
+combined <- bind_rows(or_long, hua_long)
+
+summary(combined)
+head(combined)
+
+# This is how I correlated the correct levels for month in order
+combined <- combined %>%
+  mutate(month = factor(month, levels = c("FEB", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPT", "OCT", "NOV", "DEC","JAN")))
+
+# I needed to make the datasets smaller so this was the code to do that.
+
+oratia_data <- combined %>% 
+  filter(location == "Oratia")
+
+huapai_data <- combined %>% 
+  filter(location == "Huapai")
+
+# This was just to see the first few rows of the data 
+head(oratia_data)
+head(huapai_data)
+
+
+
+```
+
+### Visualizing the data:
+
+#### My goal was to look at the mean abundance of beetles across the two different sites where the beetles were located. To do this, a linear regression for each site across months was created using the code provided below. The months were used as numbers. It was then saved in a new df to a new object. I first had to calculate the mean standard abundance for each site and then for them combined...
+
+```{r}
+
+
+# Load the required packages
+
+library(dplyr)
+library(car)
+library(ggplot2)
+
+# Calculate mean abundance and standard error
+
+mean_abundance <- combined %>%
+  group_by(month, location) %>%
+  summarize(mean_abundance = mean(count, na.rm = TRUE), SE = sd(count, na.rm = TRUE) / sqrt(n()), .groups = "drop")
+
+# Calculate mean abundance and standard error for Oratia
+mean_abundance_oratia <- combined %>%
+  filter(location == "Oratia") %>%
+  group_by(month) %>%
+  summarize(mean_abundance = mean(count, na.rm = TRUE),
+            SE = sd(count, na.rm = TRUE) / sqrt(n()),
+            .groups = "drop")
+
+# Calculate mean abundance and standard error for Huapai
+mean_abundance_huapai <- combined %>%
+  filter(location == "Huapai") %>%
+  group_by(month) %>%
+  summarize(mean_abundance = mean(count, na.rm = TRUE),
+            SE = sd(count, na.rm = TRUE) / sqrt(n()),
+            .groups = "drop")
+
+# Calculate mean abundance and standard error
+mean_abundance <- combined %>%
+  group_by(month, location) %>%
+  summarize(mean_abundance = mean(count, na.rm = TRUE), SE = sd(count, na.rm = TRUE) / sqrt(n()), .groups = "drop")
+
+```
+
+#### This next part is still part of the visualization step. I created a graph of the mean abundance showing both sites on the same graph
+
+```{R}
+# Plot
+ggplot(mean_abundance, aes(x = month, y = mean_abundance, color = location, group = location)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean_abundance - SE, ymax = mean_abundance + SE), width = 0.2) +
+  labs(x = "Month", y = "Mean Abundance Count", color = "Location") +
+  ggtitle("Mean Abundance Count by Month") +
+  theme_minimal()
+```
+
+#### This is when I was able to do a linear regression model for both sites and then create scatter plots
+
+```{r}
+# Linear regression for Oratia
+lm(count ~ as.integer(month), data = oratia_data)
+
+# Summary of linear regression model for Oratia
+summary(lm_oratia)
+
+```
+
+####This linear regression model of oratia shows a relationship between mean abundance and months. The slope of the change in abundance per month was negative meaning there was a decrease in count as the months went by. The p-value for slope shows a statistically significant decreasing trend in counts over the months as well. The r-squared falue shows low varability in the mean abundance explained by month. This suggest other factors could be incluencing mean abundance as well.
+
+```{r}
+# Linear regression for Huapai
+lm(count ~ as.integer(month), data = huapai_data)
+
+# Summary of linear regression model for Huapai
+summary(lm_huapai)
+```
+
+####This linear regression model of huapai shows a similar relationship in mean abundance per month. The slope of chance in mean abundance per month was also negative suggesting is also had a decrease as the months progressed. The p-value for slope shows a statistically significant decreasing trend in counts over the months as well. The r-squared value was even lower for this site meaning there was less variabliliy in the abundance explained by month.
+
+####I then created scatter plots for each site
+
+```{r}
+# Scatter plot with regression line for Oratia
+
+ggplot(oratia_data, aes(x = month, y = count)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Linear Regression at Oratia",
+       x = "Month",
+       y = "Mean Abundance")
+
+```
+
+```{r}
+# Scatter plot with regression line for Huapai
+ggplot(huapai_data, aes(x = month, y = count)) +
+  geom_point(color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Linear Regression at Huapai",
+       x = "Month",
+       y = "Mean Abundance")
+
+```
+
+####This scatter plot showing the mean abundance in huapai every month shows a higher number of mean abundance each month than in
+
+###Modeling the data:
+
+####This will be done by using a t-test to look at the comparision of general mean abundance between the two places.
+
+```{r}
+#t-test on mean abundances between Oratia and Huapai
+t.test(mean_abundance_oratia$mean_abundance, mean_abundance_huapai$mean_abundance)
+
+
+```
+
+###The test resulted in a t-value of -1.9628 and a p-value of 0.06314, showing that while there is a slight indication of a difference (oratia site has lower mean abundance than huapai), it's not statistically significant. The confidence interval is -7.52 to 0.22, that there may showing there may be a potential difference, but it's uncertain. Oratia's mean abundance is 7.40 and Huapai's is 11.05. While there are visible differences in the data shown it's not statistically significant. Further analysis is needed to show possible significance.These differences could however be due to ecological and enviromental factors within the two sites. The paper with the original study states that the huapai site is filled with large kauri trees while the Oraita site is filled with younger kauri trees. This could be reason for the the Huapai site having a larger mean abundance. If the beetles have larger trees they have more area to thrive.
